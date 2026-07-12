@@ -78,27 +78,7 @@ async function run() {
 
     
 
-    app.get('/api/manage-gadgets', async (req: Request, res: Response) => {
-      try {
-        const userEmail = req.query.email as string;
-        const userRole = req.query.role as string;
 
-        if (!userEmail) {
-          return res.status(400).send({ error: "User email is required" });
-        }
-
-        let query = {};
-        if (userRole !== "admin") {
-          query = { "user.email": userEmail };
-        }
-
-        const gadgets = await gadgetsCollection.find(query).toArray();
-        res.send(gadgets);
-      } catch (err) {
-        console.error(err);
-        res.status(500).send({ error: "Failed to fetch gadgets" });
-      }
-    });
 
     app.post('/api/add-gadget', async (req: Request, res: Response) => {
       try {
