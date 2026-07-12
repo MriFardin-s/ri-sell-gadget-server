@@ -1,7 +1,7 @@
 import express, { type Express, type Request, type Response } from 'express';
 import dotenv from 'dotenv';
-import cors from 'cors'; 
-import { MongoClient, ServerApiVersion } from 'mongodb'; 
+import cors from 'cors';
+import { MongoClient, ObjectId, ServerApiVersion } from 'mongodb';
 
 dotenv.config();
 
@@ -35,13 +35,71 @@ app.get('/', (req: Request, res: Response) => {
 
 async function run() {
   try {
-  
+
     await client.connect();
 
     const database = client.db("ri-sell-gadget");
     const gadgetsCollection = database.collection("gadgets");
 
-   // user 
+    // user 
+
+    app.get('/api/gadgets', async (req: Request, res: Response) => {
+      try {
+        const gadgets = await gadgetsCollection.find().toArray();
+        res.send(gadgets);
+      } catch (err) {
+        console.error("Error fetching gadgets:", err);
+        res.status(500).send({ error: "Failed to fetch gadgets" });
+      }
+    });
+
+
+
+    app.get('/api/gadgets/:id', async (req: Request<{ id: string }>, res: Response) => {
+      try {
+        const id: string = req.params.id;
+
+        if (!ObjectId.isValid(id)) {
+          return res.status(400).send({ error: "Invalid gadget ID format" });
+        }
+
+        const gadget = await gadgetsCollection.findOne({ _id: new ObjectId(id) });
+
+        if (!gadget) {
+          return res.status(404).send({ error: "Gadget not found" });
+        }
+
+        res.send(gadget);
+      } catch (err) {
+        console.error(err);
+        res.status(500).send({ error: "Failed to fetch gadget details" });
+      }
+    });
+
+    
+
+    app.get('/api/manage-gadgets', async (req: Request, res: Response) => {
+      try {
+        const userEmail = req.query.email as string;
+        const userRole = req.query.role as string;
+
+        if (!userEmail) {
+          return res.status(400).send({ error: "User email is required" });
+        }
+
+        let query = {};
+        if (userRole !== "admin") {
+          query = { "user.email": userEmail };
+        }
+
+        const gadgets = await gadgetsCollection.find(query).toArray();
+        res.send(gadgets);
+      } catch (err) {
+        console.error(err);
+        res.status(500).send({ error: "Failed to fetch gadgets" });
+      }
+    });
+
     app.post('/api/add-gadget', async (req: Request, res: Response) => {
       try {
         const gadget = req.body;
@@ -53,14 +111,14 @@ async function run() {
       }
     });
 
-   
+
     await client.db("admin").command({ ping: 1 });
     console.log("Pinged your deployment. You successfully connected to MongoDB!");
-    
+
   } catch (error) {
     console.error("Database connection error:", error);
   }
-} 
+}
 
 
 run().catch(console.dir);
