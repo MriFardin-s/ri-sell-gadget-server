@@ -45,7 +45,7 @@ async function run() {
 
     app.get('/api/gadgets', async (req: Request, res: Response) => {
       try {
-        const gadgets = await gadgetsCollection.find().toArray();
+        const gadgets = await gadgetsCollection.find().sort({ createdAt: -1 }).toArray();
         res.send(gadgets);
       } catch (err) {
         console.error("Error fetching gadgets:", err);
@@ -76,18 +76,64 @@ async function run() {
       }
     });
 
-    
 
 
+    app.get('/api/manage-gadgets', async (req: Request, res: Response) => {
+      try {
+        const userEmail = req.query.email as string;
+        const userRole = req.query.role as string;
+
+        if (!userEmail) {
+          return res.status(400).send({ error: "User email is required" });
+        }
+
+        let query = {};
+        if (userRole !== "admin") {
+          query = { "user.email": userEmail };
+        }
+
+        const gadgets = await gadgetsCollection.find(query).sort({ createdAt: -1 }).toArray();
+        res.send(gadgets);
+      } catch (err) {
+        console.error(err);
+        res.status(500).send({ error: "Failed to fetch gadgets" });
+      }
+    });
 
     app.post('/api/add-gadget', async (req: Request, res: Response) => {
       try {
         const gadget = req.body;
-        const result = await gadgetsCollection.insertOne(gadget);
+
+        const gadgetWithTimestamp = {
+          ...gadget,
+          createdAt: new Date()
+        };
+
+        const result = await gadgetsCollection.insertOne(gadgetWithTimestamp);
         res.send(result);
       } catch (err) {
         console.error("Error inserting gadget:", err);
         res.status(500).send({ error: "Failed to add gadget" });
+      }
+    });
+    app.delete('/api/delete-gadget/:id', async (req: Request<{ id: string }>, res: Response) => {
+      try {
+        const id: string = req.params.id;
+
+        if (!ObjectId.isValid(id)) {
+          return res.status(400).send({ error: "Invalid gadget ID format" });
+        }
+
+        const result = await gadgetsCollection.deleteOne({ _id: new ObjectId(id) });
+
+        if (result.deletedCount === 0) {
+          return res.status(404).send({ error: "Gadget not found" });
+        }
+
+        res.send({ success: true, message: "Gadget deleted successfully" });
+      } catch (err) {
+        console.error(err);
+        res.status(500).send({ error: "Failed to delete gadget" });
       }
     });
 
