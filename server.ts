@@ -40,6 +40,7 @@ async function run() {
 
     const database = client.db("ri-sell-gadget");
     const gadgetsCollection = database.collection("gadgets");
+    const usersCollection = database.collection("user");
 
     // user 
 
@@ -54,10 +55,10 @@ async function run() {
           limit = "12",
         } = req.query;
 
-   
+
         const query: any = {};
 
- 
+
         if (search) {
           query.$or = [
             { title: { $regex: search as string, $options: "i" } },
@@ -74,7 +75,7 @@ async function run() {
         }
 
 
-        let sortOption: any = { createdAt: -1 }; 
+        let sortOption: any = { createdAt: -1 };
         if (sort === "oldest") {
           sortOption = { createdAt: 1 };
         } else if (sort === "price-low") {
@@ -153,6 +154,111 @@ async function run() {
       } catch (err) {
         console.error(err);
         res.status(500).send({ error: "Failed to fetch gadgets" });
+      }
+    });
+
+    app.get('/api/latest-gadgets', async (req: Request, res: Response) => {
+      try {
+
+        const latestGadgets = await gadgetsCollection
+          .find({})
+          .sort({ createdAt: -1 })
+          .limit(6)
+          .toArray();
+
+        res.status(200).json({
+          success: true,
+          data: latestGadgets
+        });
+      } catch (error) {
+        res.status(500).json({
+          success: false,
+          message: "Failed to fetch latest gadgets"
+        });
+      }
+    });
+
+    app.get('/api/condition-stats', async (req: Request, res: Response) => {
+      try {
+        const stats = await gadgetsCollection.aggregate([
+          {
+            $match: {
+              condition: { $exists: true, $ne: null }
+            }
+          },
+          {
+            $sort: { createdAt: -1 }
+          },
+          {
+            $group: {
+              _id: "$condition",
+              count: { $sum: 1 },
+              latestDoc: { $first: "$createdAt" }
+            }
+          },
+          {
+            $sort: { latestDoc: -1 }
+          },
+          {
+            $project: {
+              _id: 0,
+              slug: "$_id",
+              name: {
+                $concat: [
+                  { $toUpper: { $substrCP: ["$_id", 0, 1] } },
+                  { $substrCP: ["$_id", 1, { $strLenCP: "$_id" }] }
+                ]
+              },
+              count: 1,
+              iconKey: "$_id"
+            }
+          }
+        ]).toArray();
+
+        res.status(200).json({
+          success: true,
+          data: stats
+        });
+      } catch (error) {
+        res.status(500).json({
+          success: false,
+          message: "Failed to fetch condition stats"
+        });
+      }
+    });
+
+    app.get('/api/stats', async (req: Request, res: Response) => {
+      try {
+
+        const oneYearAgo = new Date();
+        oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
+
+        const totalUsers = await usersCollection.countDocuments({});
+        const totalGadgets = await gadgetsCollection.countDocuments({});
+
+        const lastYearUsers = await usersCollection.countDocuments({
+          createdAt: { $gte: oneYearAgo }
+        });
+
+        const lastYearGadgets = await gadgetsCollection.countDocuments({
+          createdAt: { $gte: oneYearAgo }
+        });
+
+        res.status(200).json({
+          success: true,
+          data: {
+            totalUsers,
+            totalGadgets,
+            lastYearUsers,
+            lastYearGadgets
+          }
+        });
+      } catch (error) {
+        console.error("Error fetching stats:", error);
+        res.status(500).json({
+          success: false,
+          message: "Failed to fetch stats"
+        });
       }
     });
 
