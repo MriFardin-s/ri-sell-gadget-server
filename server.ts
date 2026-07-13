@@ -45,8 +45,64 @@ async function run() {
 
     app.get('/api/gadgets', async (req: Request, res: Response) => {
       try {
-        const gadgets = await gadgetsCollection.find().sort({ createdAt: -1 }).toArray();
-        res.send(gadgets);
+        const {
+          search = "",
+          priority,
+          condition,
+          sort = "newest",
+          page = "1",
+          limit = "12",
+        } = req.query;
+
+   
+        const query: any = {};
+
+ 
+        if (search) {
+          query.$or = [
+            { title: { $regex: search as string, $options: "i" } },
+            { shortDescription: { $regex: search as string, $options: "i" } },
+          ];
+        }
+
+
+        if (priority && priority !== "") {
+          query.priority = priority;
+        }
+        if (condition && condition !== "") {
+          query.condition = condition;
+        }
+
+
+        let sortOption: any = { createdAt: -1 }; 
+        if (sort === "oldest") {
+          sortOption = { createdAt: 1 };
+        } else if (sort === "price-low") {
+          sortOption = { price: 1 };
+        } else if (sort === "price-high") {
+          sortOption = { price: -1 };
+        }
+
+
+        const pageNum = Number(page);
+        const limitNum = Number(limit);
+        const skipNum = (pageNum - 1) * limitNum;
+
+
+        const totalItems = await gadgetsCollection.countDocuments(query);
+        const gadgets = await gadgetsCollection
+          .find(query)
+          .sort(sortOption)
+          .skip(skipNum)
+          .limit(limitNum)
+          .toArray();
+
+        res.send({
+          gadgets,
+          totalItems,
+          totalPages: Math.ceil(totalItems / limitNum) || 1,
+        });
+
       } catch (err) {
         console.error("Error fetching gadgets:", err);
         res.status(500).send({ error: "Failed to fetch gadgets" });
